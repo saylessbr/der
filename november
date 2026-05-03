@@ -241,11 +241,12 @@ spawn(function()
         end
 
         if not espOn then
-            for _, entry in next, espLabels do
-                if entry.label.Visible then hideESPEntry(entry) end
-            end
-            continue
-        end
+    for name, entry in next, espLabels do
+        hideESPEntry(entry)
+        removeESPLabel(name)
+    end
+    continue
+end
 
         local hpBarOn = UI.GetValue("esp_hpbar")
         local showCurrentHp = UI.GetValue("esp_currenthp")
