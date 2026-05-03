@@ -1,1 +1,0 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/saylessbr/Views/refs/heads/main/octobersageplayplayground.lua"))
