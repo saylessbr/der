@@ -1,10 +1,7 @@
 local localPlayer = game.Players.LocalPlayer
-
-repeat wait() until localPlayer.Character
-repeat wait() until localPlayer.Character:FindFirstChild("HumanoidRootPart")
-repeat wait() until workspace.Live[localPlayer.Name]
-repeat wait() until localPlayer.Backpack:FindFirstChild("Weapon")
-
+repeat
+    wait()
+until localPlayer.Backpack:FindFirstChild("Weapon")
 local passiveAgilityPath = game.Workspace.Live[localPlayer.Name].PassiveAgility
 local originalValue = passiveAgilityPath.Value
 local savedValue = originalValue
@@ -34,6 +31,36 @@ local BAR_WIDTH = 50
 local BAR_HEIGHT = 6
 local SECTION_COUNT = 5
 
+-- Font list — order matches the Combo dropdown (0-based index from UI)
+local FONT_LIST = {
+    "UI",
+    "System",
+    "SystemBold",
+    "Minecraft",
+    "Monospace",
+    "Pixel",
+    "Fortnite",
+}
+local FONT_MAP = {
+    ["UI"]         = Drawing.Fonts.UI,
+    ["System"]     = Drawing.Fonts.System,
+    ["SystemBold"] = Drawing.Fonts.SystemBold,
+    ["Minecraft"]  = Drawing.Fonts.Minecraft,
+    ["Monospace"]  = Drawing.Fonts.Monospace,
+    ["Pixel"]      = Drawing.Fonts.Pixel,
+    ["Fortnite"]   = Drawing.Fonts.Fortnite,
+}
+
+local function getSelectedFont()
+    local idx = (UI.GetValue("esp_font") or 0) + 1
+    local name = FONT_LIST[idx] or "UI"
+    return FONT_MAP[name] or Drawing.Fonts.UI
+end
+
+local function getSelectedFontSize()
+    return UI.GetValue("esp_font_size") or 13
+end
+
 local MOB_TYPES = {
     { match = "king_gigamed",      display = "King Gigamed",      color = Color3.fromRGB(255, 215, 0)   },
     { match = "gigamed",           display = "Gigamed",           color = Color3.fromRGB(255, 255, 255) },
@@ -61,6 +88,14 @@ local function getMobInfo(name)
     return nil, nil
 end
 
+local function getPlayerNameSet()
+    local set = {}
+    for _, p in ipairs(players:GetPlayers()) do
+        set[p.Name] = true
+    end
+    return set
+end
+
 local function removeESPLabel(name)
     local entry = espLabels[name]
     if entry then
@@ -73,22 +108,20 @@ local function removeESPLabel(name)
     end
 end
 
-local function hideAllESP()
-    for _, entry in next, espLabels do
-        entry.label.Visible = false
-        entry.hpLabel.Visible = false
-        entry.hpBar.Visible = false
-        entry.hpBarBg.Visible = false
-        for _, line in ipairs(entry.hpLines) do line.Visible = false end
-    end
+local function hideESPEntry(entry)
+    entry.label.Visible = false
+    entry.hpLabel.Visible = false
+    entry.hpBar.Visible = false
+    entry.hpBarBg.Visible = false
+    for _, line in ipairs(entry.hpLines) do line.Visible = false end
 end
 
 local function createESPLabel(name)
     local nameLabel = Drawing.new("Text")
-    nameLabel.Size = 16
+    nameLabel.Size = getSelectedFontSize()
     nameLabel.Center = true
     nameLabel.Outline = true
-    nameLabel.Font = Drawing.Fonts.System
+    nameLabel.Font = getSelectedFont()
     nameLabel.Text = name
     nameLabel.Visible = false
 
@@ -114,8 +147,8 @@ local function createESPLabel(name)
     end
 
     local hpLabel = Drawing.new("Text")
-    hpLabel.Size = 16
-    hpLabel.Font = Drawing.Fonts.System
+    hpLabel.Size = getSelectedFontSize()
+    hpLabel.Font = getSelectedFont()
     hpLabel.Outline = true
     hpLabel.Center = true
     hpLabel.Visible = false
@@ -150,17 +183,17 @@ local function createMobESPLabel(name)
     local display, color = getMobInfo(name)
 
     local nameLabel = Drawing.new("Text")
-    nameLabel.Size = 16
+    nameLabel.Size = getSelectedFontSize()
     nameLabel.Center = true
     nameLabel.Outline = true
-    nameLabel.Font = Drawing.Fonts.System
+    nameLabel.Font = getSelectedFont()
     nameLabel.Text = display
     nameLabel.Color = color
     nameLabel.Visible = false
 
     local hpLabel = Drawing.new("Text")
-    hpLabel.Size = 14
-    hpLabel.Font = Drawing.Fonts.System
+    hpLabel.Size = getSelectedFontSize()
+    hpLabel.Font = getSelectedFont()
     hpLabel.Outline = true
     hpLabel.Center = true
     hpLabel.Visible = false
@@ -178,134 +211,138 @@ local function safeWorldToScreen(pos)
     return nil, false
 end
 
+-- Player ESP loop
 spawn(function()
     while true do
         wait(0.01)
-        local espOn = UI.GetValue("esp_on")
-        local hpBarOn = UI.GetValue("esp_hpbar")
-        local showCurrentHp = UI.GetValue("esp_currenthp")
-        local maxDist = UI.GetValue("esp_distance") or 500
 
-        local activePlayers = {}
-        for _, p in ipairs(players:GetPlayers()) do
-            activePlayers[p.Name] = true
-        end
+        local espOn = UI.GetValue("esp_on")
+        local playerNameSet = getPlayerNameSet()
+        local font = getSelectedFont()
+        local fontSize = getSelectedFontSize()
+
         for name in next, espLabels do
-            if not activePlayers[name] then removeESPLabel(name) end
+            if not playerNameSet[name] then removeESPLabel(name) end
         end
 
         if not espOn then
-            hideAllESP()
-        else
-            local localRoot = live[localPlayer.Name] and live[localPlayer.Name]:FindFirstChild("HumanoidRootPart")
+            for _, entry in next, espLabels do
+                if entry.label.Visible then hideESPEntry(entry) end
+            end
+            continue
+        end
 
-            for _, model in ipairs(live:GetChildren()) do
-                local name = model.Name
-                if not activePlayers[name] then continue end
-                if name == localPlayer.Name then continue end
+        local hpBarOn = UI.GetValue("esp_hpbar")
+        local showCurrentHp = UI.GetValue("esp_currenthp")
+        local maxDist = UI.GetValue("esp_distance") or 500
+        local localRoot = live[localPlayer.Name] and live[localPlayer.Name]:FindFirstChild("HumanoidRootPart")
 
-                local root = model:FindFirstChild("HumanoidRootPart")
-                if not root then continue end
+        for _, model in ipairs(live:GetChildren()) do
+            local name = model.Name
 
-                if localRoot then
-                    local dist = (root.Position - localRoot.Position).Magnitude
-                    if dist > maxDist then
-                        if espLabels[name] then
-                            espLabels[name].label.Visible = false
-                            espLabels[name].hpLabel.Visible = false
-                            espLabels[name].hpBar.Visible = false
-                            espLabels[name].hpBarBg.Visible = false
-                            for _, line in ipairs(espLabels[name].hpLines) do line.Visible = false end
-                        end
-                        continue
-                    end
-                end
+            if not playerNameSet[name] then continue end
+            if name == localPlayer.Name then continue end
 
-                if not espLabels[name] then createESPLabel(name) end
+            local root = model:FindFirstChild("HumanoidRootPart")
+            if not root then continue end
 
-                local entry = espLabels[name]
-                local screenPos, onScreen = safeWorldToScreen(root.Position + Vector3.new(0, 1.5, 0))
-
-                if not screenPos then
-                    entry.label.Visible = false
-                    entry.hpLabel.Visible = false
-                    entry.hpBar.Visible = false
-                    entry.hpBarBg.Visible = false
-                    for _, line in ipairs(entry.hpLines) do line.Visible = false end
+            if localRoot then
+                local dist = (root.Position - localRoot.Position).Magnitude
+                if dist > maxDist then
+                    if espLabels[name] then hideESPEntry(espLabels[name]) end
                     continue
                 end
+            end
 
-                entry.label.Visible = onScreen
-                entry.label.Position = Vector2.new(screenPos.X, screenPos.Y)
+            if not espLabels[name] then createESPLabel(name) end
+            local entry = espLabels[name]
 
-                local humanoid = model:FindFirstChild("Humanoid")
-                if humanoid then
-                    local pct = math.floor(humanoid.Health / humanoid.MaxHealth * 100)
-                    local ratio = pct / 100
-                    local barY = screenPos.Y + 18
-                    local hpText = showCurrentHp and math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth) or pct .. "%"
+            entry.label.Font = font
+            entry.label.Size = fontSize
+            entry.hpLabel.Font = font
+            entry.hpLabel.Size = fontSize
 
-                    if hpBarOn then
-                        local barX = screenPos.X - BAR_WIDTH / 2
-                        entry.hpBarBg.Position = Vector2.new(barX, barY)
-                        entry.hpBarBg.Size = Vector2.new(BAR_WIDTH, BAR_HEIGHT)
-                        entry.hpBarBg.Visible = onScreen
+            local screenPos, onScreen = safeWorldToScreen(root.Position + Vector3.new(0, 1.5, 0))
+            if not screenPos then
+                hideESPEntry(entry)
+                continue
+            end
 
-                        entry.hpBar.Position = Vector2.new(barX, barY)
-                        entry.hpBar.Size = Vector2.new(BAR_WIDTH * ratio, BAR_HEIGHT)
-                        entry.hpBar.Visible = onScreen
+            entry.label.Visible = onScreen
+            entry.label.Position = Vector2.new(screenPos.X, screenPos.Y)
 
-                        if pct <= 33 then
-                            entry.hpBar.Color = Color3.fromRGB(255, 0, 0)
-                        elseif pct <= 65 then
-                            entry.hpBar.Color = Color3.fromRGB(255, 165, 0)
-                        else
-                            entry.hpBar.Color = Color3.fromRGB(0, 255, 0)
-                        end
+            local humanoid = model:FindFirstChild("Humanoid")
+            if humanoid then
+                local pct = math.floor(humanoid.Health / humanoid.MaxHealth * 100)
+                local ratio = pct / 100
+                local barY = screenPos.Y + fontSize + 2
+                local hpText = showCurrentHp
+                    and math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
+                    or pct .. "%"
 
-                        for i, line in ipairs(entry.hpLines) do
-                            local lineX = barX + (BAR_WIDTH / SECTION_COUNT) * i
-                            line.From = Vector2.new(lineX, barY)
-                            line.To = Vector2.new(lineX, barY + BAR_HEIGHT)
-                            line.Visible = onScreen
-                        end
+                if hpBarOn then
+                    local barX = screenPos.X - BAR_WIDTH / 2
+                    entry.hpBarBg.Position = Vector2.new(barX, barY)
+                    entry.hpBarBg.Size = Vector2.new(BAR_WIDTH, BAR_HEIGHT)
+                    entry.hpBarBg.Visible = onScreen
 
-                        if hpText ~= entry.lastHp then
-                            entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
-                            entry.hpLabel.Text = hpText
-                            entry.lastHp = hpText
-                        end
-                        entry.hpLabel.Visible = onScreen
-                        entry.hpLabel.Position = Vector2.new(screenPos.X, barY + BAR_HEIGHT + 10)
+                    entry.hpBar.Position = Vector2.new(barX, barY)
+                    entry.hpBar.Size = Vector2.new(BAR_WIDTH * ratio, BAR_HEIGHT)
+                    entry.hpBar.Visible = onScreen
+
+                    if pct <= 33 then
+                        entry.hpBar.Color = Color3.fromRGB(255, 0, 0)
+                    elseif pct <= 65 then
+                        entry.hpBar.Color = Color3.fromRGB(255, 165, 0)
                     else
-                        entry.hpBar.Visible = false
-                        entry.hpBarBg.Visible = false
-                        for _, line in ipairs(entry.hpLines) do line.Visible = false end
-
-                        if hpText ~= entry.lastHp then
-                            entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
-                            entry.hpLabel.Text = hpText
-                            entry.lastHp = hpText
-                        end
-                        entry.hpLabel.Visible = onScreen
-                        entry.hpLabel.Position = Vector2.new(screenPos.X, screenPos.Y + 18)
+                        entry.hpBar.Color = Color3.fromRGB(0, 255, 0)
                     end
+
+                    for i, line in ipairs(entry.hpLines) do
+                        local lineX = barX + (BAR_WIDTH / SECTION_COUNT) * i
+                        line.From = Vector2.new(lineX, barY)
+                        line.To = Vector2.new(lineX, barY + BAR_HEIGHT)
+                        line.Visible = onScreen
+                    end
+
+                    if hpText ~= entry.lastHp then
+                        entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
+                        entry.hpLabel.Text = hpText
+                        entry.lastHp = hpText
+                    end
+                    entry.hpLabel.Visible = onScreen
+                    entry.hpLabel.Position = Vector2.new(screenPos.X, barY + BAR_HEIGHT + 2)
                 else
-                    entry.hpLabel.Visible = false
                     entry.hpBar.Visible = false
                     entry.hpBarBg.Visible = false
                     for _, line in ipairs(entry.hpLines) do line.Visible = false end
+
+                    if hpText ~= entry.lastHp then
+                        entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
+                        entry.hpLabel.Text = hpText
+                        entry.lastHp = hpText
+                    end
+                    entry.hpLabel.Visible = onScreen
+                    entry.hpLabel.Position = Vector2.new(screenPos.X, screenPos.Y + fontSize + 2)
                 end
+            else
+                entry.hpLabel.Visible = false
+                entry.hpBar.Visible = false
+                entry.hpBarBg.Visible = false
+                for _, line in ipairs(entry.hpLines) do line.Visible = false end
             end
         end
     end
 end)
 
+-- Mob ESP loop
 spawn(function()
     while true do
         wait(0.01)
         local mobEspOn = UI.GetValue("mob_esp_on")
         local showCurrentHp = UI.GetValue("esp_currenthp")
+        local font = getSelectedFont()
+        local fontSize = getSelectedFontSize()
 
         local activeMobs = {}
         for _, model in ipairs(live:GetChildren()) do
@@ -330,6 +367,11 @@ spawn(function()
                 if not mobESPLabels[name] then createMobESPLabel(name) end
                 local entry = mobESPLabels[name]
 
+                entry.label.Font = font
+                entry.label.Size = fontSize
+                entry.hpLabel.Font = font
+                entry.hpLabel.Size = fontSize
+
                 local screenPos, onScreen = safeWorldToScreen(root.Position + Vector3.new(0, 1.5, 0))
 
                 if not screenPos then
@@ -351,7 +393,7 @@ spawn(function()
                     entry.lastHp = hpText
                 end
                 entry.hpLabel.Visible = onScreen
-                entry.hpLabel.Position = Vector2.new(screenPos.X, screenPos.Y + 18)
+                entry.hpLabel.Position = Vector2.new(screenPos.X, screenPos.Y + fontSize + 2)
             end
         end
     end
@@ -365,13 +407,13 @@ local kb_mob_esp = nil
 local kb_show_health = nil
 local lastToggleState = false
 
-UI.AddTab("AgeplayPlayground", function(tab)
+UI.AddTab("Passive Agility", function(tab)
     local sec = tab:Section("Settings", "Left")
     sec:Toggle("agility_on", "Agility Spoof")
     kb_toggle = sec:Keybind("agility_toggle_kb", 0x70, "click")
     sec:Spacing()
     sec:SliderInt("agility_set_value", "Set Agility", 0, 1000, savedValue)
-    sec:SliderInt("agility_cap", "Agility Cap", originalValue, 1000, 70)
+    sec:SliderInt("agility_cap", "Agility Cap", originalValue, 1000, 100)
     sec:Button("Apply", function()
         local setVal = UI.GetValue("agility_set_value")
         local cap = UI.GetValue("agility_cap")
@@ -398,15 +440,18 @@ UI.AddTab("AgeplayPlayground", function(tab)
     esp:Toggle("esp_on", "Player ESP", false)
     kb_esp = esp:Keybind("esp_kb", 0x42, "click")
     esp:Spacing()
-    esp:Toggle("esp_hpbar", "Health Bar", false)
+    esp:Toggle("esp_hpbar", "Health Bar", true)
     esp:Spacing()
     esp:Toggle("esp_currenthp", "Show Health", false)
     kb_show_health = esp:Keybind("esp_currenthp_kb", 0, "always")
     esp:Spacing()
-    esp:SliderInt("esp_distance", "Render Distance", 10, 30000, 5000)
+    esp:SliderInt("esp_distance", "Render Distance", 10, 30000, 500)
     esp:Spacing()
     esp:Toggle("mob_esp_on", "Mob ESP", false)
     kb_mob_esp = esp:Keybind("mob_esp_kb", 0, "always")
+    esp:Spacing()
+    esp:SliderInt("esp_font_size", "Font Size", 8, 48, 13)
+    esp:Combo("esp_font", "Font", FONT_LIST, 0)
 
     local info = tab:Section("Info", "Right")
     info:Text("Green = Spoof ON")
@@ -415,7 +460,7 @@ end)
 
 while true do
     local spoofOn = UI.GetValue("agility_on")
-    local cap = UI.GetValue("agility_cap") or 85
+    local cap = UI.GetValue("agility_cap") or 100
 
     if lastToggleState ~= spoofOn then
         if spoofOn then
@@ -450,11 +495,7 @@ while true do
         wait(0.4)
     end
 
-    if spoofOn then
-        label.Color = Color3.fromRGB(0, 255, 0)
-    else
-        label.Color = Color3.fromRGB(255, 0, 0)
-    end
+    label.Color = spoofOn and Color3.fromRGB(0, 255, 0) or Color3.fromRGB(255, 0, 0)
 
     if kb_up and iskeypressed(kb_up:GetKey()) then
         if spoofOn then
