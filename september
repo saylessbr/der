@@ -52,6 +52,16 @@ local FONT_MAP = {
     ["Fortnite"]   = Drawing.Fonts.Fortnite,
 }
 
+local function getHpColor(pct)
+    if pct <= 33 then
+        return Color3.fromRGB(255, 0, 0)
+    elseif pct <= 65 then
+        return Color3.fromRGB(255, 165, 0)
+    else
+        return Color3.fromRGB(0, 255, 0)
+    end
+end
+
 local function getSelectedFont()
     local idx = (UI.GetValue("esp_font") or 0) + 1
     local name = FONT_LIST[idx] or "UI"
@@ -230,6 +240,7 @@ local function startPlayerESP()
             wait(0.01)
             if not espRunning then
                 removeAllESPLabels()
+                espLabels = {}
                 espStopped = true
                 break
             end
@@ -293,6 +304,7 @@ local function startPlayerESP()
                     local hpText = showCurrentHp
                         and math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
                         or pct .. "%"
+                    local hpColor = getHpColor(pct)
 
                     if hpBarOn then
                         local barX = screenPos.X - BAR_WIDTH / 2
@@ -302,15 +314,8 @@ local function startPlayerESP()
 
                         entry.hpBar.Position = Vector2.new(barX, barY)
                         entry.hpBar.Size = Vector2.new(BAR_WIDTH * ratio, BAR_HEIGHT)
+                        entry.hpBar.Color = hpColor
                         entry.hpBar.Visible = onScreen
-
-                        if pct <= 33 then
-                            entry.hpBar.Color = Color3.fromRGB(255, 0, 0)
-                        elseif pct <= 65 then
-                            entry.hpBar.Color = Color3.fromRGB(255, 165, 0)
-                        else
-                            entry.hpBar.Color = Color3.fromRGB(0, 255, 0)
-                        end
 
                         for i, line in ipairs(entry.hpLines) do
                             local lineX = barX + (BAR_WIDTH / SECTION_COUNT) * i
@@ -320,7 +325,7 @@ local function startPlayerESP()
                         end
 
                         if hpText ~= entry.lastHp then
-                            entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
+                            entry.hpLabel.Color = hpColor
                             entry.hpLabel.Text = hpText
                             entry.lastHp = hpText
                         end
@@ -332,7 +337,7 @@ local function startPlayerESP()
                         for _, line in ipairs(entry.hpLines) do line.Visible = false end
 
                         if hpText ~= entry.lastHp then
-                            entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
+                            entry.hpLabel.Color = hpColor
                             entry.hpLabel.Text = hpText
                             entry.lastHp = hpText
                         end
@@ -357,6 +362,7 @@ local function startMobESP()
             wait(0.01)
             if not mobEspRunning then
                 removeAllMobESPLabels()
+                mobESPLabels = {}
                 mobEspStopped = true
                 break
             end
@@ -384,7 +390,6 @@ local function startMobESP()
                 local humanoid = model:FindFirstChild("Humanoid")
                 if not root or not humanoid then continue end
 
-                -- Recheck name every tick using actual current model name
                 local currentDisplay, currentColor = getMobInfo(model.Name)
                 if not currentDisplay then
                     removeMobESPLabel(name)
@@ -400,7 +405,6 @@ local function startMobESP()
                 entry.hpLabel.Font = font
                 entry.hpLabel.Size = fontSize
 
-                -- Always update name and color from recheck
                 entry.label.Text = currentDisplay
                 entry.label.Color = currentColor
 
@@ -415,12 +419,12 @@ local function startMobESP()
                 entry.label.Position = Vector2.new(screenPos.X, screenPos.Y)
 
                 local pct = math.floor(humanoid.Health / humanoid.MaxHealth * 100)
-                local ratio = pct / 100
                 local hpText = showCurrentHp
                     and math.floor(humanoid.Health) .. "/" .. math.floor(humanoid.MaxHealth)
                     or pct .. "%"
+                local hpColor = getHpColor(pct)
 
-                entry.hpLabel.Color = Color3.new(1 - ratio, ratio, 0)
+                entry.hpLabel.Color = hpColor
                 entry.hpLabel.Text = hpText
                 entry.lastHp = hpText
                 entry.hpLabel.Visible = onScreen
@@ -454,7 +458,6 @@ UI.AddTab("Passive Agility", function(tab)
         passiveAgilityPath.Value = setVal
         savedValue = setVal
         updateLabel()
-        notify("Passive Agility set to " .. tostring(setVal), "Agility", 2)
     end)
     sec:Spacing()
     sec:Button("Increase +10")
@@ -466,7 +469,6 @@ UI.AddTab("Passive Agility", function(tab)
         passiveAgilityPath.Value = originalValue
         savedValue = originalValue
         updateLabel()
-        notify("Passive Agility reset to " .. tostring(originalValue), "Agility", 2)
     end)
 
     local esp = tab:Section("ESP", "Right")
@@ -501,11 +503,9 @@ while true do
         if spoofOn then
             passiveAgilityPath.Value = savedValue
             updateLabel()
-            notify("Agility spoof enabled, restored to " .. tostring(savedValue), "Agility", 2)
         else
             savedValue = passiveAgilityPath.Value
             passiveAgilityPath.Value = originalValue
-            notify("Agility spoof disabled, reset to " .. tostring(originalValue), "Agility", 2)
         end
     end
     lastToggleState = spoofOn
@@ -566,9 +566,6 @@ while true do
                 passiveAgilityPath.Value = newVal
                 savedValue = newVal
                 updateLabel()
-                notify("Passive Agility increased to " .. tostring(newVal), "Agility", 2)
-            else
-                notify("Agility cap of " .. tostring(cap) .. " reached!", "Agility", 2)
             end
         end
         wait(0.2)
@@ -582,9 +579,6 @@ while true do
                 passiveAgilityPath.Value = newVal
                 savedValue = newVal
                 updateLabel()
-                notify("Passive Agility decreased to " .. tostring(newVal), "Agility", 2)
-            else
-                notify("Agility cannot go below your base of " .. tostring(originalValue) .. "!", "Agility", 2)
             end
         end
         wait(0.2)
